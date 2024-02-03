@@ -12,7 +12,7 @@
                         v-on:keydown.enter="hideSuggestions"
                         class="select-all p-2 rounded-none focus:border-gray-200 my-1 font-bold p-1 text-white bg-black text-md mr-10 uppercase" />
                 </div>
-                <ul v-if="symbols.length" class="bg-white text-center absolute mt-2">
+                <ul class="bg-white text-center absolute mt-2 z-40">
                     <li v-for="sugg in symbols" :key="sugg"
                         class="p-2 py-1 bg-black hover:bg-gray-50">
                         {{ sugg }}

@@ -4,7 +4,7 @@
 
     </canvas>
     <div class="aboslute text-white right-0 
-        top-1/2
+        top-1/2 select-none
         -translate-y-1/2 text-[0.6rem] absolute font-mono" 
         v-text="baseLine">
     </div>
