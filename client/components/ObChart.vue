@@ -1,17 +1,20 @@
 <template>
-    <canvas id="c" :width="w" :height="h" class="bg-black w-full h-full">
+    <div class="relative w-full h-full">
+    <canvas id="c" :width="w" :height="h" class="bg-black w-full h-full absolute">
 
-        <div class="top-0 right-[-50px] p-4 bg-white text-white">
-            This is some text that will be displayed on top of the parent div, positioned at the right edge.
-        </div>
     </canvas>
+    <div class="aboslute text-white right-0 
+        top-1/2
+        -translate-y-1/2 text-[0.6rem] absolute font-mono" 
+        v-text="baseLine">
+    </div>
+    </div>
 </template>
 
 <script lang="ts" setup>
 
 const w = useState("width", () => 35);
 const h = useState("height", () => 80);
-
 </script>
 
 <script lang="ts">
@@ -24,6 +27,7 @@ import ConnectionState from "./types/ConnectionState";
 function emptyQuote(n: number): Quote { return ({ p: n, q: 0 }) };
 export default {
     data() {
+        const { SERVER_URL, FPS } = useRuntimeConfig().public;
         return {
             timer: {} as NodeJS.Timeout,
             connection: {} as signalR.HubConnection,
@@ -35,6 +39,9 @@ export default {
             width: 25, // todo this should be in the state and bidirectional
             height: 50, // same as above
             minTick: 0.001, // same ^
+            SERVER_URL: SERVER_URL as string,
+            FPS: FPS as number,
+            baseLine: 0,
             // pauseListener: {},
         };
     },
@@ -53,13 +60,13 @@ export default {
         // note in teh future, i might want to scale canvsa to allow drawing or whatever
 
         this.connection = new signalR.HubConnectionBuilder()
-            .withUrl("http://localhost:5000/ws")
+            .withUrl(`${this.SERVER_URL}/ws`)
             .withAutomaticReconnect([1000, 10000, 30000])
             .build();
 
-            
+
         this.connection.on('upd', this.onDataReceived);
-        
+
         const connState = useState<ConnectionState>("connectionState", () => ConnectionState.Disconnected);
 
         this.connection.onreconnecting(() => {
@@ -85,7 +92,7 @@ export default {
                 return;
 
             this.drawAll();
-        }, 1000 / 12);
+        }, 1000 / this.FPS);
 
         this.connection.start()
             .then(async () => {
@@ -111,7 +118,7 @@ export default {
     methods: {
         async tryTrack() {
             const newSymbol = this.symbol.value ?? "ordiusdt";
-            const res = await fetch(`http://localhost:5000/symbol?name=${newSymbol}`)
+            const res = await fetch(`${this.SERVER_URL}/symbol?name=${newSymbol}`)
             const data = await res.json() as SymbolInfo;
             if (data !== null) {
                 this.snapshots = [];
@@ -141,17 +148,16 @@ export default {
 
             // we will use the top bid of the newest snapshot as the baseline
 
-            let baseLine = 0;
             for (let x = 1; x < this.snapshots.length; x++) {
                 if (x > this.width)
                     break;
 
                 const s = this.snapshots[this.snapshots.length - x];
                 if (x == 1) {
-                    baseLine = s.b[0].p;
+                    this.baseLine = s.b[0].p;
                 }
 
-                this.draw(this.width - x, s, baseLine);
+                this.draw(this.width - x, s, this.baseLine);
             }
 
         },

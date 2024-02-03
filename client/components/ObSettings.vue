@@ -53,49 +53,6 @@
         </div>
     </header>
 </template> 
-  
-<script lang="ts">
-
-export default {
-    data() {
-        return {
-            showConn: false,
-            selectedSymbol: "ordiusdt",
-            symbols: new Array<string>()
-        };
-    },
-    methods: {
-        async fetchSymbols() {
-            const apiUrl = `http://localhost:5000/symbols?name=${this.selectedSymbol}`;
-
-            try {
-                const response = await fetch(apiUrl);
-                const data = await response.json();
-
-                this.trySelect(data);
-            } catch (error) {
-                console.error('Error fetching symbols:', error);
-            }
-        },
-        trySelect(data: string[]) {
-            if (!data) {
-                this.symbols = [];
-                return;
-            }
-
-            if (data.findIndex((v) => v == this.selectedSymbol.toLowerCase()) !== -1) {
-                const symbol = useState('symbol');
-                symbol.value = this.selectedSymbol;
-            }
-
-            this.symbols = data;
-        },
-        hideSuggestions() {
-            this.symbols = []
-        }
-    }
-}
-</script>
 
 <script lang="ts" setup>
 import ConnectionState from './types/ConnectionState';
@@ -130,4 +87,50 @@ function getConnString() {
     }
 }
 
+</script>
+  
+<script lang="ts">
+
+export default {
+    data() {
+        
+        const { SERVER_URL } = useRuntimeConfig().public;
+        return {
+            showConn: false,
+            selectedSymbol: "ordiusdt",
+            symbols: new Array<string>(),
+            SERVER_URL: SERVER_URL
+        };
+    },
+    methods: {
+        async fetchSymbols() {
+            const apiUrl = `${this.SERVER_URL}/symbols?name=${this.selectedSymbol}`;
+
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                this.trySelect(data);
+            } catch (error) {
+                console.error('Error fetching symbols:', error);
+            }
+        },
+        trySelect(data: string[]) {
+            if (!data) {
+                this.symbols = [];
+                return;
+            }
+
+            if (data.findIndex((v) => v == this.selectedSymbol.toLowerCase()) !== -1) {
+                const symbol = useState('symbol');
+                symbol.value = this.selectedSymbol;
+            }
+
+            this.symbols = data;
+        },
+        hideSuggestions() {
+            this.symbols = []
+        }
+    }
+}
 </script>

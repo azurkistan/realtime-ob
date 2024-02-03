@@ -4,5 +4,11 @@ export default defineNuxtConfig({
   modules: ['@nuxtjs/tailwindcss'],
   imports: {
     dirs: ['types/*.ts']
+  },
+  runtimeConfig: {
+    public: {
+      SERVER_URL: "http://localhost:5000",
+      FPS: 24,
+    }
   }
 })
