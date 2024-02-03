@@ -49,9 +49,7 @@ export default {
         // we do this for drawing speed
         this.imageData = this.ctx.createImageData(1, 1);
 
-        // todo update as width/height change
-        // note in teh future, i might want to scale this to allow drawing or whatever
-
+        // note in teh future, i might want to scale canvsa to allow drawing or whatever
 
         this.connection = new signalR.HubConnectionBuilder()
             .withUrl("http://localhost:5000/ws")
@@ -74,7 +72,7 @@ export default {
             this.connection.send("sub", symbol.value);
         });
 
-
+        
         // available only in the DLC
         // document.addEventListener("keypress", (e) => {
         //     if (e.code == "Space") {
@@ -86,9 +84,7 @@ export default {
             if (this.isStopped)
                 return;
 
-            console.time("draw");
             this.drawAll();
-            console.timeEnd("draw")
         }, 1000 / 12);
 
         this.connection.start()
@@ -122,11 +118,6 @@ export default {
             this.width = width.value;
             this.height = height.value;
 
-            // if (this.c.width != this.width || this.c.height != this.height) {
-            //     this.c.width = this.width;
-            //     this.c.height = this.height;
-            // }
-
             if (this.snapshots.length > this.height * 2) {
                 // clean up once ina while
                 this.snapshots = this.snapshots.slice(this.snapshots.length - 50);
@@ -147,6 +138,9 @@ export default {
                 const s = this.snapshots[this.snapshots.length - x];
                 if (x == 1) {
                     baseLine = s.b[0].p;
+
+                    // xd temp solution
+                    // should get this from the api or in the snapshot packet
                     this.minTick = Math.min(Math.abs(s.b[0].p - s.b[1].p), Math.abs(s.a[s.a.length - 1].p - s.a[s.a.length - 2].p));
                     const minTick = useState("tickSize")
                     minTick.value = this.minTick;
@@ -154,16 +148,17 @@ export default {
 
                 this.draw(this.width - x, s, baseLine);
             }
+
         },
         draw(x: number, s: OrderBookSnapshot, baseLine: number) {
             if (this.c === undefined)
                 return;
+
             const output = new Array<number>(this.height);
 
 
             // todo this takes around 14ms, optimize
             const all: Quote[] = [...s.a, ...s.b];
-
 
             let allIndex = 0;
             let curPrice = baseLine + (this.minTick * this.height / 2);
@@ -179,7 +174,13 @@ export default {
             while (outputIndex < output.length) {
                 while (all[allIndex].p < curPrice - outputIndex * this.minTick) {
                     output[outputIndex++] = 0;
+
+                    if (outputIndex == output.length)
+                        break;
                 }
+
+                if (outputIndex == output.length)
+                    break;
 
                 output[outputIndex++] = all[allIndex++].q;
 

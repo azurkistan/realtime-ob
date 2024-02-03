@@ -31,4 +31,13 @@ app.UseCors(cpb =>
 
 app.MapHub<OrderbookHub>("/ws");
 
+
+app.Map("/symbols",
+    async (Librarian api, string name) =>
+    {
+        var symbols = await api.GetValidSymbolsAsync(name);
+
+        return symbols.Where(x => x.Contains(name.ToLowerInvariant()));
+    });
+
 app.Run();

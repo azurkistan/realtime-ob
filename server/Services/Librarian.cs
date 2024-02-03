@@ -142,7 +142,7 @@ public sealed class Librarian(IHubContext<OrderbookHub> hubContext, IMemoryCache
         await hubContext.Clients.Group(symbolName).SendAsync("upd", data);
     }
 
-    private async Task<String?> GetValidSymbolAsync(string input)
+    private async Task<string?> GetValidSymbolAsync(string input)
     {
         input = input.Trim().ToLowerInvariant();
         var validSymbols = await cache.GetOrCreateAsync("valid_symbols", ValidSymbolFactory);
@@ -151,6 +151,17 @@ public sealed class Librarian(IHubContext<OrderbookHub> hubContext, IMemoryCache
             return input;
 
         return null;
+    }
+
+    public async Task<string[]> GetValidSymbolsAsync(string input)
+    {
+        input = input.Trim().ToLowerInvariant();
+        var validSymbols = await cache.GetOrCreateAsync("valid_symbols", ValidSymbolFactory);
+
+        if (validSymbols is null)
+            return Array.Empty<string>();
+        
+        return validSymbols.Where(x => x.StartsWith(input)).ToArray();
     }
 
     private async Task<HashSet<String>> ValidSymbolFactory(ICacheEntry cacheEntry)

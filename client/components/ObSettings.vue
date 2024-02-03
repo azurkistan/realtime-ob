@@ -1,13 +1,25 @@
 <template>
     <header class="border-b-2 border-white text-sm font-mono text-gray-300">
         <div class="flex">
+
             <!-- Back Button -->
             <NuxtLink to="/" class="my-1 font-bold text-md p-1 mx-3 cursor-pointer hover:shadow-white border-sm">
                 ❮
             </NuxtLink>
-            <!-- Symbol -->
-            <input class="my-1 font-bold p-1 text-white bg-black text-md mr-10 uppercase" v-model="symbol"
-                v-on:keyup.enter="symbolChange" />
+
+            <div class="justify-center relative text-gray-500">
+                <div class="">
+                    <input type="text" v-model="selectedSymbol" v-on:input="fetchSymbols" v-on:blur="hideSuggestions"
+                        v-on:keydown.enter="hideSuggestions"
+                        class="select-all p-2 rounded-none focus:border-gray-200 my-1 font-bold p-1 text-white bg-black text-md mr-10 uppercase" />
+                </div>
+                <ul v-if="symbols.length" class="bg-white text-center absolute mt-2">
+                    <li v-for="sugg in symbols" :key="sugg"
+                        class="p-2 py-1 bg-black hover:bg-gray-50">
+                        {{ sugg }}
+                    </li>
+                </ul>
+            </div>
 
             <!-- Inputs and Connection Status -->
             <div class="flex items-center space-x-4">
@@ -36,12 +48,12 @@
 
             <!-- Connection Status -->
             <div class="flex items-center space-x-2 block ml-auto mx-5">
-                <div v-show="showConnectionStatus">
+                <div v-show="showConn">
                     {{ getConnString() }}
                 </div>
                 <div class="w-4 h-4 rounded-full right-0"
                     :class="{ 'bg-green-500': isConnected(), 'bg-red-500': isDisconnected(), 'bg-orange-500': isConnecting() }"
-                    @mouseover="showConnectionStatus = true" @mouseleave="showConnectionStatus = false"></div>
+                    @mouseover="showConn = true" @mouseleave="showConn = false"></div>
 
             </div>
         </div>
@@ -53,22 +65,39 @@
 export default {
     data() {
         return {
-            // width: 0,
-            // height: 0,
-            // ticksize: 0,
-            // isConnected: true,
-            showConnectionStatus: false,
-            selectedSymbol: "",
+            showConn: false,
+            selectedSymbol: "ordiusdt",
+            symbols: new Array<string>()
         };
     },
     methods: {
-        symbolChange(__e: Event) {
-            console.log(this.selectedSymbol)
-            const symbol = useState("symbol");
-            symbol.value = this.selectedSymbol;
+        async fetchSymbols() {
+            const apiUrl = `http://localhost:5000/symbols?name=${this.selectedSymbol}`;
+
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                this.trySelect(data);
+            } catch (error) {
+                console.error('Error fetching symbols:', error);
+            }
         },
-        onBeforeUpdate() {
-            this.selectedSymbol = useState<string>("symbol").value;
+        trySelect(data: string[]) {
+            if (!data) {
+                this.symbols = [];
+                return;
+            }
+
+            if (data.findIndex((v) => v == this.selectedSymbol.toLowerCase()) !== -1) {
+                const symbol = useState('symbol');
+                symbol.value = this.selectedSymbol;
+            }
+
+            this.symbols = data;
+        },
+        hideSuggestions() {
+            this.symbols = []
         }
     }
 }
@@ -82,7 +111,6 @@ const height = useState("height")
 
 const connState = useState<ConnectionState>('connectionState');
 let minTick = useState('tickSize');
-const symbol = useState("symbol");
 
 function isConnected() {
     return connState.value == ConnectionState.Connected;
