@@ -12,7 +12,7 @@ public sealed class BinanceApi(IHttpClientFactory _httpClientFactory)
         NumberHandling = JsonNumberHandling.AllowReadingFromString
     };
 
-    public async Task<string[]> GetValidSymbols()
+    public async Task<SymbolModel[]> GetValidSymbols()
     {
         using var client = _httpClientFactory.CreateClient();
 
@@ -21,7 +21,9 @@ public sealed class BinanceApi(IHttpClientFactory _httpClientFactory)
         if (res is null)
             throw new NullReferenceException("Invalid json received for all pairs api call");
 
-        return Array.ConvertAll(res.Symbols, (m) => m.Symbol.ToLowerInvariant());
+        foreach (var s in res.Symbols)
+            s.Symbol = s.Symbol.ToLowerInvariant();
+        return res.Symbols;
     }
 
     public async Task<Depth> GetDepthAsync(SymbolName symbol, CancellationToken cancellationToken)

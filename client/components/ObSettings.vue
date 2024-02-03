@@ -2,7 +2,6 @@
     <header class="border-b-2 border-white text-sm font-mono text-gray-300">
         <div class="flex">
 
-            <!-- Back Button -->
             <NuxtLink to="/" class="my-1 font-bold text-md p-1 mx-3 cursor-pointer hover:shadow-white border-sm">
                 ❮
             </NuxtLink>
@@ -21,23 +20,20 @@
                 </ul>
             </div>
 
-            <!-- Inputs and Connection Status -->
             <div class="flex items-center space-x-4">
-                <!-- Width Input -->
+                
                 <div class="text-white">
                     Width:
                     <input v-model="width" min="10" step="1" type="number"
                         class="max-w-16 text-center border-none bg-transparent text-white focus:outline-none focus:ring-0" />
                 </div>
 
-                <!-- Height Input -->
                 <div class="text-white">
                     Height:
                     <input v-model="height" min="10" step="2" type="number"
                         class="max-w-16 text-center bg-transparent text-white focus:outline-none focus:ring-0" />
                 </div>
 
-                <!-- Ticksize Input -->
                 <div class="text-white">
                     Tick Size:
                     <input readonly v-model="minTick" step="0.001" type="number"
@@ -45,8 +41,6 @@
                 </div>
             </div>
 
-
-            <!-- Connection Status -->
             <div class="flex items-center space-x-2 block ml-auto mx-5">
                 <div v-show="showConn">
                     {{ getConnString() }}
@@ -110,7 +104,7 @@ const width = useState("width");
 const height = useState("height")
 
 const connState = useState<ConnectionState>('connectionState');
-let minTick = useState('tickSize');
+const minTick = useState('tickSize');
 
 function isConnected() {
     return connState.value == ConnectionState.Connected;

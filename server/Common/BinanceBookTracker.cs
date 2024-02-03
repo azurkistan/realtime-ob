@@ -66,15 +66,16 @@ public sealed class BinanceBookTracker(string symbol, BinanceApi bapi) : IDispos
         var buf = ArrayPool<byte>.Shared.Rent(1024 * 1024);
         try
         {
+            var lowercaseSymbol = symbol.ToLowerInvariant();
             Log.Information("Weboscket starting");
             using var ws = new ClientWebSocket();
-            await ws.ConnectAsync(new Uri($"wss://stream.binance.com:9443/ws/{symbol}@depth@100ms"),
+            await ws.ConnectAsync(new Uri($"wss://stream.binance.com:9443/ws/{lowercaseSymbol}@depth@100ms"),
                 cancellationToken);
 
             var subRequestString = JsonSerializer.SerializeToUtf8Bytes(new WsSubscriptionModel()
             {
                 Method = "SUBSCRIBE",
-                Params = [$"{symbol}@depth"],
+                Params = [$"{lowercaseSymbol}@depth"],
                 Id = 1
             });
             Log.Information("Subscribing");

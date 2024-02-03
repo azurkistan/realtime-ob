@@ -14,7 +14,6 @@ public sealed class OrderbookHub(Librarian l) : Hub
     [HubMethodName("sub")]
     public async Task<bool> Sub(string symbolName)
     {
-        Log.Information(symbolName);
         var safeSymbol = await l.SubscribeAsync(Context.ConnectionId, symbolName);
         if (safeSymbol is not null)
         {

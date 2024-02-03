@@ -68,7 +68,7 @@ public sealed class Librarian(IHubContext<OrderbookHub> hubContext, IMemoryCache
 
     public async Task<string?> SubscribeAsync(string userId, string inputSymbol)
     {
-        var potentialSymbol = await GetValidSymbolAsync(inputSymbol);
+        var potentialSymbol = await GetFuzzySymbolAsync(inputSymbol);
         if (potentialSymbol is not string symbol)
         {
             Log.Information("User inputted invalid symbol");
@@ -142,15 +142,30 @@ public sealed class Librarian(IHubContext<OrderbookHub> hubContext, IMemoryCache
         await hubContext.Clients.Group(symbolName).SendAsync("upd", data);
     }
 
-    private async Task<string?> GetValidSymbolAsync(string input)
+    private async Task<string?> GetFuzzySymbolAsync(string input)
     {
         input = input.Trim().ToLowerInvariant();
         var validSymbols = await cache.GetOrCreateAsync("valid_symbols", ValidSymbolFactory);
 
-        if (validSymbols is not null && validSymbols.Contains(input))
+        if (validSymbols is not null && validSymbols.Contains(new()
+            {
+                Symbol = input
+            }))
             return input;
 
         return null;
+    }
+
+    public async Task<SymbolModel?> GetSymbolAsync(string input)
+    {
+        input = input.Trim().ToLowerInvariant();
+        
+        var validSymbols = await cache.GetOrCreateAsync("valid_symbols", ValidSymbolFactory);
+
+        if (validSymbols is null)
+            return null;
+
+        return validSymbols.FirstOrDefault(x => x.Symbol == input);
     }
 
     public async Task<string[]> GetValidSymbolsAsync(string input)
@@ -161,15 +176,20 @@ public sealed class Librarian(IHubContext<OrderbookHub> hubContext, IMemoryCache
         if (validSymbols is null)
             return Array.Empty<string>();
         
-        return validSymbols.Where(x => x.StartsWith(input)).ToArray();
+        Log.Information("Sesnding");
+        return validSymbols
+            .Select(x => x.Symbol)
+            .Where(x => x.StartsWith(input)).ToArray();
     }
+    
+    
 
-    private async Task<HashSet<String>> ValidSymbolFactory(ICacheEntry cacheEntry)
+    private async Task<IReadOnlyCollection<SymbolModel>> ValidSymbolFactory(ICacheEntry cacheEntry)
     {
         // once an hour update valid symbols
         cacheEntry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
 
         var symbols = await bapi.GetValidSymbols();
-        return symbols.ToHashSet();
+        return symbols.ToList();
     }
 }

@@ -17,6 +17,7 @@ const h = useState("height", () => 80);
 <script lang="ts">
 import * as signalR from "@microsoft/signalr";
 import type OrderBookSnapshot from "./types/OrderBookSnapshot";
+import type SymbolInfo from "./types/SymbolInfo";
 import type Quote from "./types/Quote";
 import ConnectionState from "./types/ConnectionState";
 
@@ -56,9 +57,10 @@ export default {
             .withAutomaticReconnect([1000, 10000, 30000])
             .build();
 
+            
         this.connection.on('upd', this.onDataReceived);
+        
         const connState = useState<ConnectionState>("connectionState", () => ConnectionState.Disconnected);
-        const symbol = useState("symbol", () => "ordiusdt");
 
         this.connection.onreconnecting(() => {
             connState.value = ConnectionState.Connecting;
@@ -66,13 +68,11 @@ export default {
         this.connection.onclose(() => {
             connState.value = ConnectionState.Disconnected;
         });
-        this.connection.onreconnected(() => {
+        this.connection.onreconnected(async () => {
             connState.value = ConnectionState.Connected;
-            this.ctx?.clearRect(0, 0, this.c.width, this.c.height);
-            this.connection.send("sub", symbol.value);
         });
 
-        
+
         // available only in the DLC
         // document.addEventListener("keypress", (e) => {
         //     if (e.code == "Space") {
@@ -88,10 +88,9 @@ export default {
         }, 1000 / 12);
 
         this.connection.start()
-            .then(() => {
-                let conn = useState<ConnectionState>("connectionState")
-                conn.value = ConnectionState.Connected;
-                this.connection.send("sub", symbol.value);
+            .then(async () => {
+                connState.value = ConnectionState.Connected;
+                await this.tryTrack();
             });
     },
     beforeUnmount() {
@@ -100,16 +99,29 @@ export default {
     },
     computed: {
         symbol() {
-            return useState("symbol", () => "ordiusdt");
+            return useState("symbol");
         }
     },
     watch: {
-        symbol(oldSymbol, newSymbol) {
-            this.ctx?.clearRect(0, 0, this.c.width, this.c.height);
-            this.connection.send("sub", newSymbol.value);
+        async symbol(oldSymbol, newSymbol) {
+            console.log(oldSymbol.value, newSymbol.value);
+            await this.tryTrack()
         }
     },
     methods: {
+        async tryTrack() {
+            const newSymbol = this.symbol.value ?? "ordiusdt";
+            const res = await fetch(`http://localhost:5000/symbol?name=${newSymbol}`)
+            const data = await res.json() as SymbolInfo;
+            if (data !== null) {
+                this.snapshots = [];
+                this.minTick = data.tickSize;
+                useState("tickSize").value = this.minTick;
+
+                this.ctx?.clearRect(0, 0, this.c.width, this.c.height);
+                this.connection.send("sub", newSymbol);
+            }
+        },
         drawAll() {
             // draw the last width worth of snapshots
 
@@ -118,7 +130,7 @@ export default {
             this.width = width.value;
             this.height = height.value;
 
-            if (this.snapshots.length > this.height * 2) {
+            if (this.snapshots.length > this.width * 2) {
                 // clean up once ina while
                 this.snapshots = this.snapshots.slice(this.snapshots.length - 50);
             }
@@ -129,7 +141,6 @@ export default {
 
             // we will use the top bid of the newest snapshot as the baseline
 
-
             let baseLine = 0;
             for (let x = 1; x < this.snapshots.length; x++) {
                 if (x > this.width)
@@ -138,17 +149,14 @@ export default {
                 const s = this.snapshots[this.snapshots.length - x];
                 if (x == 1) {
                     baseLine = s.b[0].p;
-
-                    // xd temp solution
-                    // should get this from the api or in the snapshot packet
-                    this.minTick = Math.min(Math.abs(s.b[0].p - s.b[1].p), Math.abs(s.a[s.a.length - 1].p - s.a[s.a.length - 2].p));
-                    const minTick = useState("tickSize")
-                    minTick.value = this.minTick;
                 }
 
                 this.draw(this.width - x, s, baseLine);
             }
 
+        },
+        round(x: number) {
+            return +(Math.round(x + "e+3") + "e-3")
         },
         draw(x: number, s: OrderBookSnapshot, baseLine: number) {
             if (this.c === undefined)
@@ -160,19 +168,19 @@ export default {
             // todo this takes around 14ms, optimize
             const all: Quote[] = [...s.a, ...s.b];
 
+
             let allIndex = 0;
-            let curPrice = baseLine + (this.minTick * this.height / 2);
-            for (const i in all) {
+            let curPrice = this.round(baseLine + (this.minTick * this.height / 2));
+            for (let i = 0; i < all.length; i++) {
                 const cur = all[i];
                 if (cur.p <= curPrice) {
-                    allIndex = parseInt(i);
+                    allIndex = i;
                     break;
                 }
             }
-
             let outputIndex = 0;
             while (outputIndex < output.length) {
-                while (all[allIndex].p < curPrice - outputIndex * this.minTick) {
+                while (all[allIndex].p < this.round(curPrice - outputIndex * this.minTick)) {
                     output[outputIndex++] = 0;
 
                     if (outputIndex == output.length)
@@ -198,17 +206,17 @@ export default {
                 data[1] = cur >= 0 ? 255 : 0;
                 data[2] = 0;
                 data[3] = 255 * this.calculateColor(0, maxSize, Math.abs(cur));
-                this.ctx?.putImageData(this.imageData, x, y + 1);
+                this.ctx?.putImageData(this.imageData, x, y);
             }
         },
         calculateColor(minSize: number, maxSize: number, amount: number) {
             if (amount == 0)
                 return 0;
 
+            // return 0.5;
             // evertyhing i tried is ugly, the best idea woudl be to have 3 colors
             // one for 1/3 or less, one for 2/3 or less and one for 3/3
-            amount = amount + 10 * (1 - (amount / maxSize))
-            const normal = (amount) / (maxSize);
+            const normal = (amount + (maxSize - amount) / 15) / (maxSize);
 
             return normal;
         },

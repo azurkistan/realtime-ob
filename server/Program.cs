@@ -37,7 +37,21 @@ app.Map("/symbols",
     {
         var symbols = await api.GetValidSymbolsAsync(name);
 
-        return symbols.Where(x => x.Contains(name.ToLowerInvariant()));
+        return symbols;
+    });
+
+app.Map("/symbol",
+    async (Librarian api, string name) =>
+    {
+        var symbol = await api.GetSymbolAsync(name);
+        if (symbol is null)
+            return null;
+
+        return new
+        {
+            symbol = symbol.Symbol,
+            tickSize = symbol.GetTickSize(),
+        };
     });
 
 app.Run();
