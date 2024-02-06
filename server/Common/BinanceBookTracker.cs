@@ -1,4 +1,5 @@
 ﻿using System.Buffers;
+using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -22,6 +23,8 @@ public sealed class BinanceBookTracker(string symbol, BinanceApi bapi) : IDispos
         SingleReader = true,
         SingleWriter = true,
     });
+
+    private long startingTimestamp = Stopwatch.GetTimestamp();
 
     public async Task Start(CancellationToken cancellationToken)
     {
@@ -56,7 +59,7 @@ public sealed class BinanceBookTracker(string symbol, BinanceApi bapi) : IDispos
         }
         catch (Exception ex)
         {
-           Log.Error(ex, "Error in start method"); 
+            Log.Error(ex, "Error in start method");
         }
     }
 
@@ -89,6 +92,8 @@ public sealed class BinanceBookTracker(string symbol, BinanceApi bapi) : IDispos
             // var confRec = await ws.ReceiveAsync(buf, cancellationToken);
 
             // Log.Information("receive conf: {Text}", Encoding.UTF8.GetString(buf));
+
+            startingTimestamp = Stopwatch.GetTimestamp();
             while (!cancellationToken.IsCancellationRequested)
             {
                 var rec = await ws.ReceiveAsync(buf, cancellationToken);
@@ -106,7 +111,12 @@ public sealed class BinanceBookTracker(string symbol, BinanceApi bapi) : IDispos
                     continue;
                 }
 
+                var elapsedTime = Stopwatch.GetElapsedTime(startingTimestamp);
+                if (elapsedTime.TotalMilliseconds > 150)
+                    Log.Information("Abnormal websocket delay: {Stopwatch:F3}ms", elapsedTime.TotalMilliseconds);
+
                 await _eventChannel.Writer.WriteAsync(update, cancellationToken);
+                startingTimestamp = Stopwatch.GetTimestamp();
             }
         }
         catch (Exception ex)

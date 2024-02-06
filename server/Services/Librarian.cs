@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿using System.Diagnostics;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Memory;
 using Serilog;
 
@@ -132,14 +133,15 @@ public sealed class Librarian(IHubContext<OrderbookHub> hubContext, IMemoryCache
         }
     }
 
+
     private async ValueTask TrackerOnOnTick(String symbolName, Depth arg)
     {
         var data = MapDepthToSnapshotDto(arg);
         // TODO
         // we shouldn't send directly because we might throttle the update.
         // Write to channel, and then have a dedicated loop for sending events
-        // or let the tracker handle it, pass the context to it 
-        await hubContext.Clients.Group(symbolName).SendAsync("upd", data);
+        // or let the tracker handle it, pass the context to it
+        _ = hubContext.Clients.Group(symbolName).SendAsync("upd", data);
     }
 
     private async Task<string?> GetFuzzySymbolAsync(string input)
@@ -159,7 +161,7 @@ public sealed class Librarian(IHubContext<OrderbookHub> hubContext, IMemoryCache
     public async Task<SymbolModel?> GetSymbolAsync(string input)
     {
         input = input.Trim().ToLowerInvariant();
-        
+
         var validSymbols = await cache.GetOrCreateAsync("valid_symbols", ValidSymbolFactory);
 
         if (validSymbols is null)
@@ -175,14 +177,13 @@ public sealed class Librarian(IHubContext<OrderbookHub> hubContext, IMemoryCache
 
         if (validSymbols is null)
             return Array.Empty<string>();
-        
+
         Log.Information("Sesnding");
         return validSymbols
             .Select(x => x.Symbol)
             .Where(x => x.StartsWith(input)).ToArray();
     }
-    
-    
+
 
     private async Task<IReadOnlyCollection<SymbolModel>> ValidSymbolFactory(ICacheEntry cacheEntry)
     {

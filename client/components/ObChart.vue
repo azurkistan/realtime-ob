@@ -41,6 +41,7 @@ export default {
             SERVER_URL: SERVER_URL as string,
             FPS: FPS as number,
             baseLine: 0,
+            // measure: new Date(),
             // pauseListener: {},
         };
     },
@@ -50,6 +51,7 @@ export default {
 
         ctx.imageSmoothingEnabled = false;
 
+        // console.time("hehe");
         this.ctx = ctx;
         this.c = c;
 
@@ -86,13 +88,7 @@ export default {
         //     }
         // });
 
-        this.timer = setInterval(() => {
-            if (this.isStopped)
-                return;
-
-            this.drawAll();
-
-        }, 1000 / this.FPS);
+        window.requestAnimationFrame(this.onFrame);
 
         this.connection.start()
             .then(async () => {
@@ -116,6 +112,14 @@ export default {
         }
     },
     methods: {
+        onFrame() {
+            if (this.isStopped)
+                return;
+
+            this.drawAll();
+
+            window.requestAnimationFrame(this.onFrame);
+        },
         async tryTrack() {
             const newSymbol = this.symbol.value ?? "ordiusdt";
             const res = await fetch(`${this.SERVER_URL}/symbol?name=${newSymbol}`)
@@ -139,7 +143,7 @@ export default {
 
             if (this.snapshots.length > this.width * 2) {
                 // clean up once ina while
-                this.snapshots = this.snapshots.slice(this.snapshots.length - 50);
+                this.snapshots = this.snapshots.slice(this.snapshots.length - this.width);
             }
 
             if (this.snapshots.length == 0)
@@ -266,7 +270,14 @@ export default {
 
         },
         onDataReceived(s: OrderBookSnapshot) {
+            // console.timeEnd("hehe");
+            // const end = new Date();
+            // const milis = (end - this.measure);
+            // if(milis > 150)
+            //     console.log(milis);
             this.snapshots.push(s);
+            // this.measure = end;
+            // console.time("hehe");
         }
     }
 };
