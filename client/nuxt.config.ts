@@ -8,7 +8,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       SERVER_URL: "http://localhost:5000",
-      FPS: 24,
+      FPS: 30,
     }
   }
 })

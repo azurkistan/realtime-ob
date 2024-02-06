@@ -1,13 +1,12 @@
 <template>
     <div class="relative w-full h-full">
-    <canvas id="c" :width="w" :height="h" class="bg-black w-full h-full absolute">
+        <canvas id="c" :width="w" :height="h" class="bg-black w-full h-full absolute">
 
-    </canvas>
-    <div class="aboslute text-white right-0 
+        </canvas>
+        <div class="aboslute text-white right-0 
         top-1/2 select-none
-        -translate-y-1/2 text-[0.6rem] absolute font-mono" 
-        v-text="baseLine">
-    </div>
+        -translate-y-1/2 text-[0.6rem] absolute font-mono" v-text="baseLine">
+        </div>
     </div>
 </template>
 
@@ -92,6 +91,7 @@ export default {
                 return;
 
             this.drawAll();
+
         }, 1000 / this.FPS);
 
         this.connection.start()
@@ -170,13 +170,42 @@ export default {
 
             const output = new Array<number>(this.height);
 
+            let curPrice = this.round(baseLine + (this.minTick * this.height / 2));
+            let minPrice = this.round(baseLine - (this.minTick * this.height / 2));
 
             // todo this takes around 14ms, optimize
-            const all: Quote[] = [...s.a, ...s.b];
 
+            let all: Quote[] = new Array<number>(this.height);
+            // let all: Quote[] = [...s.a, ...s.b];
+
+            let aindex = 0;
+            while (s.a[s.a.length - aindex - 1].p <= curPrice) {
+                aindex++;
+            }
+            aindex++;
+
+            let bindex = 0;
+            while (s.b[bindex].p >= minPrice) {
+                bindex++;
+            }
+            bindex++;
+
+            if (aindex < 0) {
+                all = s.b.slice(0, bindex);
+            }
+            else if (bindex < 0) {
+                all = s.a.slice(0, aindex);
+            }
+            else {
+                // could extract a milisecond maybe for the entire draw by doing this 
+                // for(let i = 0; i < aindex; i++)
+                // {
+                // 
+                // }
+                all = [...s.a.slice(s.a.length - aindex), ...s.b.slice(0, bindex)];
+            }
 
             let allIndex = 0;
-            let curPrice = this.round(baseLine + (this.minTick * this.height / 2));
             for (let i = 0; i < all.length; i++) {
                 const cur = all[i];
                 if (cur.p <= curPrice) {
@@ -198,22 +227,29 @@ export default {
 
                 output[outputIndex++] = all[allIndex++].q;
 
-                if (allIndex <= s.a.length) {
+                if (allIndex <= aindex) {
                     output[outputIndex - 1] = -output[outputIndex - 1];
                 }
             }
 
             const maxSize = output.reduce((a, b) => Math.max(a, Math.abs(b)), 0);
 
-            const data = this.imageData.data;
+            const imageDataArr = new Uint8ClampedArray(this.height * 4);
             for (let y = 0; y < output.length; y++) {
                 const cur = output[y];
-                data[0] = cur < 0 ? 255 : 0;
-                data[1] = cur >= 0 ? 255 : 0;
-                data[2] = 0;
-                data[3] = 255 * this.calculateColor(0, maxSize, Math.abs(cur));
-                this.ctx?.putImageData(this.imageData, x, y);
+                imageDataArr[y * 4 + 0] = cur < 0 ? 255 : 0;
+                imageDataArr[y * 4 + 1] = cur > 0 ? 255 : 0;
+                imageDataArr[y * 4 + 2] = 0;
+                imageDataArr[y * 4 + 3] = 255 * this.calculateColor(0, maxSize, Math.abs(cur));
+
+                // data[0] = cur < 0 ? 255 : 0;
+                // data[1] = cur >= 0 ? 255 : 0;
+                // data[2] = 0;
+                // data[3] = 255 * this.calculateColor(0, maxSize, Math.abs(cur));
+                // this.ctx?.putImageData(this.imageData, x, y);
             }
+
+            this.ctx?.putImageData(new ImageData(imageDataArr, 1, this.height), x, 0);
         },
         calculateColor(minSize: number, maxSize: number, amount: number) {
             if (amount == 0)
