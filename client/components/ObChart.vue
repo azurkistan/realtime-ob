@@ -1,9 +1,29 @@
 <template>
     <div class="relative w-full h-full">
-        <canvas id="c" :width="w" :height="h" class="bg-black w-full h-full absolute">
-
+        <canvas id="c" :width="w" @mousemove="mousemove" @mouseleave="mouseleave" :height="h"
+            class="bg-black w-full h-full absolute">
         </canvas>
-        <div class="aboslute text-white right-0 
+        <!-- <div v-if="showPrice" class="absolute text-white select-none bg-black p-3 rounded  pointer-events-none"
+            :style="{ left: mousePos.x + 'px', top: mousePos.y + 'px' }">
+            <div>Price: {{ selectedData.p }}</div>
+            <div>Quantity: {{ selectedData.q }}</div>
+        </div> -->
+        <div v-show="showPrice" id="details" class="absolute flex flex-gap-4 items-center bg-black/50 rounded p-2 transition duration-300 ease-out group
+         select-none pointer-events-none">
+            <!-- :style="{ left: mousePos.x + 'px', top: mousePos.y + 'px' }" -->
+
+            <div>
+                <p class="p-1 text-xs text-white whitespace-nowrap font-semibold">Price:</p>
+                <span class="p-1 text-xs leading-none text-white">${{ selectedData.p }}</span>
+            </div>
+            <div>
+                <p class="p-1 text-xs text-green-500 font-bold">Qty:</p>
+                <span class="p-1 text-xs font-medium text-white decoration-gray-600">{{ selectedData.q }}</span>
+            </div>
+            <br>
+            <p class="p-1 text-white">{{ round(1 - baseLine / selectedData.p) }}%</p>
+        </div>
+        <div class="absolute text-white right-0 
         top-1/2 select-none
         -translate-y-1/2 text-[0.6rem] absolute font-mono" v-text="baseLine">
         </div>
@@ -12,8 +32,8 @@
 
 <script lang="ts" setup>
 
-const w = useState("width", () => 35);
-const h = useState("height", () => 80);
+const w = useState("width", () => 75);
+const h = useState("height", () => 250);
 </script>
 
 <script lang="ts">
@@ -23,7 +43,7 @@ import type SymbolInfo from "./types/SymbolInfo";
 import type Quote from "./types/Quote";
 import ConnectionState from "./types/ConnectionState";
 
-function emptyQuote(n: number): Quote { return ({ p: n, q: 0 }) };
+function emptyQuote(p: number): Quote { return ({ p: p, q: 0 }) };
 export default {
     data() {
         const { SERVER_URL, FPS } = useRuntimeConfig().public;
@@ -35,12 +55,17 @@ export default {
             ctx: undefined as (CanvasRenderingContext2D | undefined),
             isStopped: false,
             snapshots: [] as OrderBookSnapshot[],
-            width: 25, // todo this should be in the state and bidirectional
-            height: 50, // same as above
+            width: 50, // todo this should be in the state and bidirectional
+            height: 100, // same as above
             minTick: 0.001, // same ^
             SERVER_URL: SERVER_URL as string,
             FPS: FPS as number,
             baseLine: 0,
+            showPrice: false,
+            mousePos: { x: 0, y: 0 },
+            selectedData: { p: 0, q: 0 },
+            detailsElem: {} as HTMLDivElement,
+            tickDigits: 3,
             // measure: new Date(),
             // pauseListener: {},
         };
@@ -54,6 +79,7 @@ export default {
         // console.time("hehe");
         this.ctx = ctx;
         this.c = c;
+        this.detailsElem = document.getElementById("details") as HTMLDivElement;
 
         // we do this for drawing speed
         this.imageData = this.ctx.createImageData(1, 1);
@@ -80,13 +106,11 @@ export default {
             connState.value = ConnectionState.Connected;
         });
 
-
-        // available only in the DLC
-        // document.addEventListener("keypress", (e) => {
-        //     if (e.code == "Space") {
-        //         this.isStopped = !this.isStopped;
-        //     }
-        // });
+        document.addEventListener("keypress", (e) => {
+            if (e.code == "Space") {
+                this.isStopped = !this.isStopped;
+            }
+        });
 
         window.requestAnimationFrame(this.onFrame);
 
@@ -107,18 +131,26 @@ export default {
     },
     watch: {
         async symbol(oldSymbol, newSymbol) {
-            console.log(oldSymbol.value, newSymbol.value);
             await this.tryTrack()
         }
     },
     methods: {
         onFrame() {
-            if (this.isStopped)
-                return;
 
             this.drawAll();
-
             window.requestAnimationFrame(this.onFrame);
+        },
+        mousemove(ev: MouseEvent) {
+            const rect = this.c.getBoundingClientRect();
+            this.showPrice = true;
+
+            this.mousePos = {
+                x: ev.clientX - rect.left,
+                y: ev.clientY - rect.top,
+            }
+        },
+        mouseleave() {
+            this.showPrice = false;
         },
         async tryTrack() {
             const newSymbol = this.symbol.value ?? "ordiusdt";
@@ -127,6 +159,9 @@ export default {
             if (data !== null) {
                 this.snapshots = [];
                 this.minTick = data.tickSize;
+
+                this.tickDigits = this.minTick % 1 == 0 ? 0 : this.minTick.toString().split(".")[1].length;
+
                 useState("tickSize").value = this.minTick;
 
                 this.ctx?.clearRect(0, 0, this.c.width, this.c.height);
@@ -166,13 +201,13 @@ export default {
 
         },
         round(x: number) {
-            return +(Math.round(x + "e+3") + "e-3")
+            return +(Math.round(x + "e+" + this.tickDigits) + "e-" + this.tickDigits)
         },
         draw(x: number, s: OrderBookSnapshot, baseLine: number) {
             if (this.c === undefined)
                 return;
 
-            const output = new Array<number>(this.height);
+            const output = new Array<Quote>(this.height);
 
             let curPrice = this.round(baseLine + (this.minTick * this.height / 2));
             let minPrice = this.round(baseLine - (this.minTick * this.height / 2));
@@ -220,7 +255,7 @@ export default {
             let outputIndex = 0;
             while (outputIndex < output.length) {
                 while (all[allIndex].p < this.round(curPrice - outputIndex * this.minTick)) {
-                    output[outputIndex++] = 0;
+                    output[outputIndex++] = emptyQuote(all[allIndex].p);
 
                     if (outputIndex == output.length)
                         break;
@@ -229,28 +264,81 @@ export default {
                 if (outputIndex == output.length)
                     break;
 
-                output[outputIndex++] = all[allIndex++].q;
+                allIndex++;
+
 
                 if (allIndex <= aindex) {
-                    output[outputIndex - 1] = -output[outputIndex - 1];
+                    output[outputIndex++] = { q: -all[allIndex].q, p: all[allIndex].p };
+                }
+                else {
+                    output[outputIndex++] = { q: all[allIndex].q, p: all[allIndex].p };
                 }
             }
 
-            const maxSize = output.reduce((a, b) => Math.max(a, Math.abs(b)), 0);
-
+            const maxSize = output.reduce((a, b) => Math.max(a, Math.abs(b.q)), 0);
             const imageDataArr = new Uint8ClampedArray(this.height * 4);
+
+            const cRect = this.c.getBoundingClientRect();
+            const selPos = {
+                x: this.mousePos.x - cRect.left,
+                y: this.mousePos.y //+ cRect.top,
+            };
+
+            // console.log(this.c.clientWidth)
+            selPos.x = Math.floor(selPos.x * (this.width / this.c.clientWidth));
+            selPos.y = Math.floor(selPos.y * (this.height / this.c.clientHeight));
+
+            // console.log(selPos)
+
             for (let y = 0; y < output.length; y++) {
-                const cur = output[y];
-                imageDataArr[y * 4 + 0] = cur < 0 ? 255 : 0;
-                imageDataArr[y * 4 + 1] = cur > 0 ? 255 : 0;
-                imageDataArr[y * 4 + 2] = 0;
-                imageDataArr[y * 4 + 3] = 255 * this.calculateColor(0, maxSize, Math.abs(cur));
+                const { q, p } = output[y];
+                // let zero = 0;
+                if (this.showPrice && selPos.x == x && selPos.y == y) {
+                    this.selectedData = {
+                        p,
+                        q
+                    };
+
+                    imageDataArr[y * 4 + 0] = 255;
+                    imageDataArr[y * 4 + 1] = 255;
+                    imageDataArr[y * 4 + 2] = 255;
+                    imageDataArr[y * 4 + 3] = 255;
+                    continue;
+                }
+                else if (this.showPrice && q != 0 && q * q == this.selectedData.q * this.selectedData.q) {
+                    imageDataArr[y * 4 + 0] = q < 0 ? 255 : 200;
+                    imageDataArr[y * 4 + 1] = q > 0 ? 255 : 200;
+                    imageDataArr[y * 4 + 2] = 200;
+                    imageDataArr[y * 4 + 3] = 255;
+                }
+                else {
+                    imageDataArr[y * 4 + 0] = q < 0 ? 255 : 0;
+                    imageDataArr[y * 4 + 1] = q > 0 ? 255 : 0;
+                    imageDataArr[y * 4 + 2] = 0;
+                    imageDataArr[y * 4 + 3] = 255 * this.calculateColor(0, maxSize, Math.abs(q));
+                }
+
+                // if(this.showPrice &&)
 
                 // data[0] = cur < 0 ? 255 : 0;
                 // data[1] = cur >= 0 ? 255 : 0;
                 // data[2] = 0;
                 // data[3] = 255 * this.calculateColor(0, maxSize, Math.abs(cur));
                 // this.ctx?.putImageData(this.imageData, x, y);
+            }
+
+            if (this.detailsElem.clientHeight + this.mousePos.y + 5 >= window.innerHeight) {
+                this.detailsElem.style.top = this.mousePos.y - this.detailsElem.clientHeight - 5 + "px";
+            }
+            else {
+                this.detailsElem.style.top = this.mousePos.y + "px";
+            }
+
+            if (this.detailsElem.clientWidth + this.mousePos.x + 5 >= window.innerWidth) {
+                this.detailsElem.style.left = window.innerWidth - this.detailsElem.clientWidth - 10 + "px";
+            }
+            else {
+                this.detailsElem.style.left = this.mousePos.x + "px";
             }
 
             this.ctx?.putImageData(new ImageData(imageDataArr, 1, this.height), x, 0);
@@ -275,7 +363,9 @@ export default {
             // const milis = (end - this.measure);
             // if(milis > 150)
             //     console.log(milis);
-            this.snapshots.push(s);
+
+            if (!this.isStopped)
+                this.snapshots.push(s);
             // this.measure = end;
             // console.time("hehe");
         }
